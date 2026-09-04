@@ -9,12 +9,17 @@ async function requireAdmin() {
   return session
 }
 
+interface RouteContext {
+  params: Promise<{ id: string }>
+}
+
 // PUT /api/admin/courses/[id] — update an existing course
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: RouteContext) {
   const session = await requireAdmin()
   if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
 
   try {
+    const { id } = await params
     const body = await request.json()
     const {
       title,
@@ -36,7 +41,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     } = body
 
     // Check if course exists
-    const existingCourse = await prisma.course.findUnique({ where: { id: params.id } })
+    const existingCourse = await prisma.course.findUnique({ where: { id } })
     if (!existingCourse) {
       return NextResponse.json({ message: "Course not found" }, { status: 404 })
     }
@@ -46,7 +51,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     if (title && title !== existingCourse.title) {
       slug = slugify(title)
       const slugConflict = await prisma.course.findFirst({
-        where: { slug, NOT: { id: params.id } },
+        where: { slug, NOT: { id } },
       })
       if (slugConflict) {
         slug = `${slug}-${Date.now()}`
@@ -54,7 +59,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
 
     const updated = await prisma.course.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         ...(title && { title }),
         slug,
@@ -90,12 +95,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE /api/admin/courses/[id] — delete a course
-export async function DELETE(_request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const session = await requireAdmin()
   if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
 
   try {
-    await prisma.course.delete({ where: { id: params.id } })
+    const { id } = await params
+    await prisma.course.delete({ where: { id } })
     return NextResponse.json({ message: "Course deleted" })
   } catch (error) {
     console.error("Delete course error:", error)
